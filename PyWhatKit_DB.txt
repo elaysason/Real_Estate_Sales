@@ -1,0 +1,20 @@
+Date: 21/3/2024
+Time: 19:54
+Phone Number: +972523150628
+Message: Hello from Python! This is an instant WhatsApp message.
+--------------------
+Date: 21/3/2024
+Time: 19:55
+Phone Number: +972523150628
+Message: Hello from Python! This is an instant WhatsApp message.
+--------------------
+Date: 21/3/2024
+Time: 19:57
+Phone Number: +972523150628
+Message: Hello from Python! This is an instant WhatsApp message.
+--------------------
+Date: 21/3/2024
+Time: 20:1
+Phone Number: +972523150628
+Message: Hello from Python! This is an instant WhatsApp message.
+--------------------
