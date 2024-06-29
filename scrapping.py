@@ -54,6 +54,11 @@ def search_website(search_place):
             cur_latest = datetime.strptime(f.read(), "%d.%m.%Y")
             if cur_latest < latest_date:
                 new_sale = True
+
+    if new_sale:
+        with open(cur_latest_date_string, "w") as f:
+            f.write(latest_sale[0])
+
     url = driver.current_url
     # Close the browser
     driver.quit()
