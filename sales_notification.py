@@ -145,7 +145,7 @@ def validate_parameters(args):
         ValueError: If the number of arguments is not equal to 2.
     """
     if len(args) != 2:
-        raise ValueError("Usage: scrapping.py <config_file_path>")
+        raise ValueError("Usage: sales_notification.py <config_file_path>")
 
 
 def validate_config(test_config):
