@@ -13,6 +13,14 @@ import json
 
 
 def search_website(search_place):
+    """
+    Set up Chrome in headless mode, perform a search using the given search_place,
+    check for new sales, and return the new_sale flag, latest_sale list, and the current URL.
+
+    :param search_place: The place to search for sales.
+    :return: A tuple containing new_sale flag (bool), latest_sale list, and the current URL.
+    """
+
     # Set up Chrome in headless mode
     chrome_options = Options()
     chrome_options.add_argument("--headless")
