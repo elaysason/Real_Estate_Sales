@@ -66,10 +66,19 @@ def search_website(search_place):
 
 
 def sale_email(sale_details, sale_url, sender_email, receiver_emails, password):
-    # Email configuration
-    sender_email = sender_email
-    receiver_emails = receiver_emails
-    password = password  # Replace with your email password
+    """
+    Sends an email with sale details to multiple recipients.
+
+    Args:
+        sale_details (list): A list containing details of the sale.
+        sale_url (str): The URL related to the sale.
+        sender_email (str): The email address of the sender.
+        receiver_emails (list): A list of email addresses of the recipients.
+        password (str): The password for the email server.
+
+    Returns:
+        None
+    """
     subject = "דירה חדשה נמכרה!"
     for receiver_email in receiver_emails:
         # Set up the email message
@@ -118,35 +127,87 @@ def sale_email(sale_details, sale_url, sender_email, receiver_emails, password):
 
 
 def validate_parameters(args):
+    """
+    A function that validates the parameters passed to the script.
+
+    Args:
+        args: A list of arguments to be validated.
+
+    Raises:
+        ValueError: If the number of arguments is not equal to 2.
+    """
     if len(args) != 2:
         raise ValueError("Usage: scrapping.py <config_file_path>")
 
 
+def validate_config(test_config):
+    """
+    Validate the configuration dictionary against a list of required keys and their corresponding values.
+
+    Args:
+        test_config (dict): The configuration dictionary to be validated.
+
+    Raises:
+        ValueError: If any of the required keys are missing or if the 'sender_email' or any of the 'receiver_emails'
+                    are not valid email addresses.
+
+    Returns:
+        None
+    """
+    # Ensure all required keys are present
+    required_keys = ['desired_location', 'sender_email', 'receiver_emails', 'email_password']
+    for key in required_keys:
+        if key not in test_config:
+            raise ValueError(f"JSON format error: Missing required key '{key}'.")
+
+    # Ensure sender_email is a valid email format (basic check)
+    if '@' not in test_config['sender_email']:
+        raise ValueError("JSON format error: 'sender_email' is not a valid email address.")
+
+    # Ensure receiver_emails is a list and contains valid email addresses
+    if not isinstance(test_config['receiver_emails'], list):
+        raise ValueError("JSON format error: 'receiver_emails' must be a list.")
+    for email in test_config['receiver_emails']:
+        if '@' not in email:
+            raise ValueError(f"JSON format error: Invalid email address in 'receiver_emails': {email}")
+
+
 def load_config(json_path):
+    """
+    Load a configuration file from the specified JSON path and validate its contents.
+
+    Args:
+        json_path (str): The path to the JSON configuration file.
+
+    Raises:
+        FileNotFoundError: If the configuration file does not exist.
+
+    Returns:
+        dict: The loaded configuration as a dictionary.
+    """
     if not os.path.exists(json_path):
         raise FileNotFoundError(f"The configuration file {json_path} does not exist.")
 
     with open(json_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
+        config_loaded = json.load(f)
+        validate_config(config_loaded)  # Validate the loaded configuration
+        return config_loaded
 
 
 if __name__ == "__main__":
     try:
         validate_parameters(sys.argv)
-        config_file_path = load_config(sys.argv[1])
-
-        with open(config_file_path, 'r', encoding='utf-8') as f:
-            config = json.load(f)
+        config = load_config(sys.argv[1])
 
         desired_location = config['desired_location']
         sender_email = config['sender_email']
         receiver_emails = config['receiver_emails']
-        email_password = config['email_password']
+        server_password = config['email_password']
 
         new_sale, latest_sale, latest_url = search_website(desired_location)
 
         if new_sale:
-            sale_email(latest_sale, latest_url, sender_email, receiver_emails, email_password)
+            sale_email(latest_sale, latest_url, sender_email, receiver_emails, server_password)
             print('Finished the run, new sale recorded and email sent.')
         else:
             print('Finished the run, no new sale')
