@@ -24,8 +24,8 @@ This project is a Real Estate Sales Notification System that automates the proce
 ## Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/elaysason/scraping_sales.git
-   cd scraping_sales
+   git clone https://github.com/elaysason/real_estate_sales.git
+   cd real_estate_sales
    ```
 
 ## Usage
