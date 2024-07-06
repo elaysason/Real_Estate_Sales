@@ -34,7 +34,7 @@ def search_website(search_place):
     # Perform search
     search_box = driver.find_element(By.XPATH,
                                      '//*[@id="SearchString"]')
-    search_box.send_keys(search_place)  # Replace "Your search query here" with your actual search query
+    search_box.send_keys(search_place)
     search_box.send_keys(Keys.RETURN)
 
     search_button = driver.find_element(By.XPATH,
@@ -47,13 +47,10 @@ def search_website(search_place):
                                        "/html/body/div[2]/div[2]/div[2]/div[1]/div[3]/div/grid-directive/div/div[1]/button/div[" + str(
                                            1 + i) + "]/div").accessible_name for i in range(8)]
     latest_date = datetime.strptime(latest_sale[0], "%d.%m.%Y")
-
+    # Flag for checking if there is a new sale
     new_sale = False
-    # selector for your search box
     cur_latest_date_string = "latest_sale.txt"
     if not os.path.exists(cur_latest_date_string):
-
-        # Write a message if the file doesn't exist
         new_sale = True
         with open(cur_latest_date_string, "w") as f:
             f.write(latest_sale[0])
