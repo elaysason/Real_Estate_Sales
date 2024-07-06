@@ -16,11 +16,10 @@ This project is a Real Estate Sales Notification System that automates the proce
 - [License](#license)
 
 ## Features
-- Automated search for new real estate sales on the specified website.
+- Automated search for new real estate sales on the finshed sales gov website.
 - Sends email notifications with the details of new sales.
 - Generates an HTML file with a map pinpointing the location of the new sale.
-- Uses Selenium for web automation and geopy for geocoding.
-
+- Uses Selenium for web automation
 ## Installation
 1. Clone the repository:
    ```bash
