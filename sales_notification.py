@@ -160,14 +160,14 @@ if __name__ == "__main__":
         config = load_config(sys.argv[1])
 
         desired_location = config['desired_location']
-        sender_email = config['sender_email']
-        receiver_emails = config['receiver_emails']
-        server_password = config['email_password']
+        user_sender_email = config['sender_email']
+        user_receiver_emails = config['receiver_emails']
+        user_server_password = config['email_password']
 
         new_sale, latest_sale, latest_url = search_website(desired_location)
 
         if new_sale:
-            sale_email(latest_sale, latest_url, sender_email, receiver_emails, server_password)
+            sale_email(latest_sale, latest_url, user_sender_email, user_receiver_emails, user_server_password)
             print('Finished the run, new sale recorded and email sent.')
         else:
             print('Finished the run, no new sale')
