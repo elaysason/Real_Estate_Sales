@@ -100,7 +100,6 @@ def sale_email(sale_details, sale_url, sender_email, receiver_emails, password):
         message["From"] = sender_email
         message["To"] = receiver_email
         message["Subject"] = subject
-
         html_content = f"""
         <html>
         <head>
@@ -115,7 +114,22 @@ def sale_email(sale_details, sale_url, sender_email, receiver_emails, password):
             <p>{body}</p>
         </body>
         </html>
-        """
+                """
+        #html_content = f"""
+        #<html>
+        #<head>
+        #    <style>
+        #        p {{
+        #            direction: rtl;
+        #            text-align: right;
+        #        }}
+        #    </style>
+        #</head>
+        #<body>
+        #    <p>{body}</p>
+        #</body>
+        #</html>
+        #"""
 
         # Attach HTML content to the email
         message.attach(MIMEText(html_content, "html"))
