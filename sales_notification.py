@@ -3,14 +3,13 @@ import time
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 import smtplib
-from selenium.webdriver.chrome.options import Options
 import sys
 import json
-from validation import validate_parameters, validate_config
+from utils import validate_parameters, validate_config, get_driver
+
 
 
 def search_website(search_place):
@@ -23,13 +22,10 @@ def search_website(search_place):
     """
 
     # Set up Chrome in headless mode
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--window-size=1920,1080")
-    driver = webdriver.Chrome(options=chrome_options)
+    driver = get_driver()
 
-    driver.get(
-        "https://www.nadlan.gov.il/")
+    # Wait for the page to load
+    time.sleep(10)
 
     # Perform search
     search_box = driver.find_element(By.XPATH,

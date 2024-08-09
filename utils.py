@@ -1,3 +1,22 @@
+from selenium.webdriver.chrome.options import Options
+from selenium import webdriver
+
+
+def get_driver():
+    """
+    Initializes and returns a Chrome WebDriver instance in the government site in headless mode.
+
+    Returns:
+        webdriver.Chrome: A Chrome WebDriver instance with the specified options.
+    """
+    chrome_options = Options()
+    #chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--window-size=1920,1080")
+    driver = webdriver.Chrome(options=chrome_options)
+
+    driver.get(
+        "https://www.nadlan.gov.il/")
+    return driver
 def validate_parameters(args):
     """
     A function that validates the parameters passed to the script.
