@@ -19,14 +19,16 @@ def create_dataset():
     # Read the CSV with the detected encoding
     cities = pd.read_csv("C:/Users/User/PycharmProjects/scraping_sales/cities.csv", encoding=encoding)
     for city in cities["שם_ישוב"]:
+
         print(city)
+        driver.get(
+            "https://www.nadlan.gov.il/")
 
         # Perform search
         search_box = driver.find_element(By.XPATH,
                                          '//*[@id="SearchString"]')
 
-        time.sleep(10)
-        search_box.clear()
+        time.sleep(20)
 
         search_box.send_keys(city)
         search_box.send_keys(Keys.RETURN)
@@ -34,24 +36,34 @@ def create_dataset():
         search_button = driver.find_element(By.XPATH,
                                             '//*[@id="submitSearchBtn"]')
         search_button.click()
-        try:
-            error_button = driver.find_element(By.XPATH,
-                                               '/html/body/div[2]/div/div[1]/div[1]/div/div[2]/search-control-directive/div/div')
+        time.sleep(20)
+
+        if driver.current_url == "https://www.nadlan.gov.il/":
+            print(driver.current_url)
+            print("Not found")
+            search_box = driver.find_element(By.XPATH, '//*[@id="SearchString"]')
+            time.sleep(10)
+            search_box.clear()
+
             continue
-        except Exception as e:
-            table = driver.find_element(By.XPATH,
-                                        '/html/body/div[2]/div[2]/div[2]/')  # Replace with the actual XPath or locator for your table
+        else:
+            print("Found")
+
+            table = driver.find_element(By.CLASS_NAME, "myTable")
+
 
             # Locate all rows in the table
-            rows = table.find_elements(By.TAG_NAME, "tr")
+            rows = table.find_elements(By.CLASS_NAME, "tableRow")
 
             # Get the number of rows
             number_of_rows = len(rows)
-
+            if number_of_rows == 0:
+                print("0 records of sales found")
+                continue
             # Loop through the rows
             print(number_of_rows)
-            driver.get(
-                "https://www.nadlan.gov.il/")
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
 
 if __name__ == "__main__":
     create_dataset()
