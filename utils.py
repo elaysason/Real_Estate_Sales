@@ -10,7 +10,7 @@ def get_driver():
         webdriver.Chrome: A Chrome WebDriver instance with the specified options.
     """
     chrome_options = Options()
-    #chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--headless")
     chrome_options.add_argument("--window-size=1920,1080")
     driver = webdriver.Chrome(options=chrome_options)
 
