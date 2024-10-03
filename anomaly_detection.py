@@ -1,3 +1,4 @@
+import sqlite3
 import time
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -9,14 +10,20 @@ import pandas as pd
 import chardet
 
 
-
 def restart_driver(driver):
     print("Restarting driver to maintain connection...")
     driver.quit()
     time.sleep(2)  # Small delay to ensure proper shutdown
     return get_driver()
 
-def column_value_index(driver,column_index, row_index):
+
+def write_last_processed_index(file_path, index):
+    """Writes the last processed index to the text file."""
+    with open(file_path, 'w') as f:
+        f.write(str(index))
+
+
+def column_value_index(driver, column_index, row_index):
     """
     Extracts the value of a specific cell based on its column and row indices.
     :param column_index: The column index of the cell (integer).
@@ -35,9 +42,24 @@ def column_value_index(driver,column_index, row_index):
         print(f"Error in locating element: {e}")
         return "N/A"
 
+
+def insert_into_db(data):
+    """Inserts a list of real estate records into the database."""
+    conn = sqlite3.connect('sales_data.db')
+    cursor = conn.cursor()
+
+    cursor.executemany('''
+        INSERT INTO sales (city, sale_date, address, block, parcel, property_type, rooms, floor, square_meters, amount, trend_change)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    ''', data)
+
+    conn.commit()
+    conn.close()
+
+
 def create_dataset():
     # Initialize driver
-      # Ensure get_driver() is correctly defined in your utils
+    # Ensure get_driver() is correctly defined in your utils
 
     # Detect encoding and read the city list
     with open("C:/Users/User/PycharmProjects/scraping_sales/cities.csv", 'rb') as f:
@@ -46,14 +68,16 @@ def create_dataset():
     cities = pd.read_csv("C:/Users/User/PycharmProjects/scraping_sales/cities.csv", encoding=encoding)
 
     # Initialize an empty list to store scraped data
-    data = []
+
     driver = get_driver()
 
     restart_threshold = 10  # Set the number of iterations before restarting
-    iteration_count = 0
+    with open("./latest_city.txt", 'r') as f:
+        latest_index = int(f.read().strip())
     # Loop through each city
-    for city in cities["שם_ישוב"]:
-        if iteration_count % restart_threshold == 0 and iteration_count != 0:
+    for index, city in enumerate(cities["שם_ישוב"][latest_index:], start=latest_index):
+        data = []
+        if index % restart_threshold == 0 and index != 0:
             driver = restart_driver(driver)
         print(f"Searching for city: {city}")
         driver.get("https://www.nadlan.gov.il/")
@@ -89,10 +113,10 @@ def create_dataset():
             continue
         else:
             print("Data found, loading results...")
-            columns = ['עיר'] + [driver.find_element(By.XPATH,
-                                                     '/html/body/div[2]/div[2]/div[2]/div[1]/div[2]/div[5]/button[' + str(
-                                                         i) + ']').text for i in
-                                 list(range(1, 10))]  # Adjust column names based on actual data structure
+            columns = ['city'] + [driver.find_element(By.XPATH,
+                                                      '/html/body/div[2]/div[2]/div[2]/div[1]/div[2]/div[5]/button[' + str(
+                                                          i) + ']').text for i in
+                                  list(range(1, 10))]  # Adjust column names based on actual data structure
 
             try:
                 # Locate the sales table
@@ -120,7 +144,7 @@ def create_dataset():
                     continue
                 else:
                     print(f"Total rows found after scrolling: {number_of_rows}")
-                    column_indexs = list(range(1,10))
+                    column_indexs = list(range(1, 11))
                     # Extract data from each row
                     try:
                         # Use enumerate with map to extract data for each row and column
@@ -129,34 +153,27 @@ def create_dataset():
                                 lambda row_data: [city] + row_data,
                                 map(
                                     lambda i: list(
-                                        map(lambda col_index: column_value_index(driver,col_index, i + 1), column_indexs)),
+                                        map(lambda col_index: column_value_index(driver, col_index, i + 1),
+                                            column_indexs)),
                                     range(len(rows))
                                 )
                             )
                         )
+                        insert_into_db(data)
+                        print(f"Inserted {len(data)} records into the database")
+
                     except Exception as e:
                         print(f"Error extracting data: {e}")
-
-                    results_df = pd.DataFrame(data, columns=columns)
-                    print(results_df.head())
-
-                    # Save the results to a CSV file
-                    results_df.to_csv("scraped_data.csv", index=False, encoding='utf-8-sig')
-                    print("Data saved to scraped_data.csv")
 
             except (NoSuchElementException, TimeoutException):
                 print("Table or rows not found.")
                 continue
-        iteration_count += 1
-    # Create a DataFrame to store the results
-    results_df = pd.DataFrame(data, columns=columns)
-    print(results_df.head())
+        write_last_processed_index('./latest_city.txt', index)
 
     # Save the results to a CSV file
-    results_df.to_csv("scraped_data.csv", index=False, encoding='utf-8')
-    print("Data saved to scraped_data.csv")
 
     driver.quit()
+
 
 if __name__ == "__main__":
     create_dataset()
