@@ -8,6 +8,7 @@ from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from utils import get_driver
 import pandas as pd
 import chardet
+import psycopg2
 
 
 def restart_driver(driver):
@@ -43,18 +44,80 @@ def column_value_index(driver, column_index, row_index):
         return "N/A"
 
 
+def extend_data_with_city(data, city, driver, column_indexes, rows):
+    extracted_data = map(
+        lambda row_data: [city] + row_data,
+        map(
+            lambda i: list(
+                map(lambda col_index: column_value_index(driver, col_index, i + 1), column_indexes)
+            ),
+            range(len(rows))
+        )
+    )
+    data.extend(extracted_data)
+    return data
+
+
+def map_rooms_to_float(rooms):
+    """Maps room descriptions to float values."""
+    room_mapping = {
+        "ראשונה": 1.0,
+        "שנייה": 2.0,
+        "שלישית": 3.0,
+        "רביעית": 4.0,
+        "חמישית": 5.0,
+        "שישית": 6.0,
+        "שביעית": 7.0,
+        "שמינית": 8.0,
+        "תשיעית": 9.0,
+        "עשירית": 10.0,
+        "אחת עשרה": 11.0,
+        "שנים עשרה": 12.0
+    }
+    return room_mapping.get(rooms.strip(), None)  # Return None if not found
+
+
 def insert_into_db(data):
-    """Inserts a list of real estate records into the database."""
-    conn = sqlite3.connect('sales_data.db')
+    """Inserts a list of real estate records into the database more efficiently."""
+    # PostgreSQL connection
+    conn = psycopg2.connect(database='real_estate_db', user='postgres', password='1q2w3e', host='localhost',
+                            port='5432')
     cursor = conn.cursor()
 
-    cursor.executemany('''
-        INSERT INTO sales (city, sale_date, address, block, parcel, property_type, rooms, floor, square_meters, amount, trend_change)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-    ''', data)
+    # SQL command with `ON CONFLICT DO NOTHING` for PostgreSQL
+    sql_command = '''
+        INSERT INTO sales (city, sale_date, address, block_parcel, property_type, rooms, floor, square_meters, amount, trend_change)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (city, sale_date, address, amount) DO NOTHING;
+    '''
+
+    # Trim whitespace for all string fields in one go before insertion
+    trimmed_data = [
+        (
+            record[0].strip(),  # city
+            record[1],  # sale_date (assuming it's already in the correct format)
+            record[2].strip(),  # address
+            record[3].strip(),  # block_parcel
+            record[4].strip(),  # property_type
+            float(record[5]) if record[5] else None,  # rooms
+            map_rooms_to_float(record[6]),  # floor
+            float(record[7]) if record[7] else None,  # square_meters
+            int(record[8].replace(',', '')) if record[8] else None,  # amount
+            record[9].strip()  # trend_change
+        )
+        for record in data
+    ]
+
+    # Use `executemany` to insert all the data in one go for better efficiency
+    cursor.executemany(sql_command, trimmed_data)
+
+    # Count how many records were inserted
+    inserted_count = cursor.rowcount
 
     conn.commit()
     conn.close()
+
+    return inserted_count
 
 
 def create_dataset():
@@ -74,6 +137,8 @@ def create_dataset():
     restart_threshold = 10  # Set the number of iterations before restarting
     with open("./latest_city.txt", 'r') as f:
         latest_index = int(f.read().strip())
+    column_indexes = list(range(1, 10))
+
     # Loop through each city
     for index, city in enumerate(cities["שם_ישוב"][latest_index:], start=latest_index):
         data = []
@@ -87,7 +152,7 @@ def create_dataset():
             search_box = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.XPATH, '//*[@id="SearchString"]'))
             )
-            search_box.send_keys(city)
+            search_box.send_keys(city.strip())
             search_box.send_keys(Keys.RETURN)
 
             # Wait for the search button and click it
@@ -100,22 +165,25 @@ def create_dataset():
             continue
 
         # Optional delay to allow for page to load
-        time.sleep(5)
+        time.sleep(10)
 
         # Check if still on the search page
         if driver.current_url == "https://www.nadlan.gov.il/":
             print("Not found, retrying...")
             try:
-                search_box = driver.find_element(By.XPATH, '//*[@id="SearchString"]')
+                search_box = WebDriverWait(driver, 15).until(
+                    EC.element_to_be_clickable((By.XPATH, '//*[@id="SearchString"]')))
                 search_box.clear()
             except NoSuchElementException:
                 print("Search box not found on retry.")
             continue
         else:
             print("Data found, loading results...")
-            columns = ['city'] + [driver.find_element(By.XPATH,
-                                                      '/html/body/div[2]/div[2]/div[2]/div[1]/div[2]/div[5]/button[' + str(
-                                                          i) + ']').text for i in
+
+            columns = ['city'] + [WebDriverWait(driver, 15).until(
+                EC.element_to_be_clickable(
+                    (By.XPATH, '/html/body/div[2]/div[2]/div[2]/div[1]/div[2]/div[5]/button[' + str(
+                        i) + ']'))).text for i in
                                   list(range(1, 10))]  # Adjust column names based on actual data structure
 
             try:
@@ -128,7 +196,7 @@ def create_dataset():
                 previous_number_of_rows = 0
                 while True:
                     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                    time.sleep(2)  # Wait for the new rows to load
+                    time.sleep(10)  # Wait for the new rows to load
                     rows = table.find_elements(By.CLASS_NAME, "tableRow")
                     number_of_rows = len(rows)
                     print(f"Rows found: {number_of_rows}")
@@ -137,30 +205,23 @@ def create_dataset():
                     if number_of_rows == previous_number_of_rows:
                         break
                     previous_number_of_rows = number_of_rows
-
+                    if number_of_rows % 1000 == 0:
+                        extended_data = extend_data_with_city(data, city, driver, column_indexes, rows)
+                        inserted = insert_into_db(extended_data)
+                        print(f"Inserted {inserted} records into the database")
+                        data = []
                 # Extract data from the rows if found
                 if number_of_rows == 0:
                     print("0 records of sales found")
                     continue
                 else:
                     print(f"Total rows found after scrolling: {number_of_rows}")
-                    column_indexs = list(range(1, 11))
                     # Extract data from each row
                     try:
                         # Use enumerate with map to extract data for each row and column
-                        data.extend(
-                            map(
-                                lambda row_data: [city] + row_data,
-                                map(
-                                    lambda i: list(
-                                        map(lambda col_index: column_value_index(driver, col_index, i + 1),
-                                            column_indexs)),
-                                    range(len(rows))
-                                )
-                            )
-                        )
-                        insert_into_db(data)
-                        print(f"Inserted {len(data)} records into the database")
+                        extended_data = extend_data_with_city(data, city, driver, column_indexes, rows)
+                        inesrted = insert_into_db(extended_data)
+                        print(f"Inserted {inesrted} records into the database")
 
                     except Exception as e:
                         print(f"Error extracting data: {e}")
