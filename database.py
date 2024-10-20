@@ -19,7 +19,7 @@ CREATE TABLE sales (
     amount REAL,                  -- סכום (Amount)
     trend_change TEXT,            -- מגמת שינוי (Trend Change)
     UNIQUE(city, sale_date, address, amount) -- Prevent duplicates
-);
+);  
 ''')
 
 # Commit and close the connection for now
