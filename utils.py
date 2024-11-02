@@ -1,3 +1,6 @@
+import logging
+import time
+
 from selenium.webdriver.chrome.options import Options
 from selenium import webdriver
 
@@ -10,12 +13,12 @@ def get_driver():
         webdriver.Chrome: A Chrome WebDriver instance with the specified options.
     """
     chrome_options = Options()
-    chrome_options.add_argument("--headless")
+    #chrome_options.add_argument("--headless")
     chrome_options.add_argument("--window-size=1920,1080")
     driver = webdriver.Chrome(options=chrome_options)
 
     driver.get(
-        "https://www.nadlan.gov.il/")
+        "https://dev.nadlan.gov.il/")
     return driver
 def validate_parameters(args):
     """
@@ -61,3 +64,10 @@ def validate_config(test_config):
     for email in test_config['receiver_emails']:
         if '@' not in email:
             raise ValueError(f"JSON format error: Invalid email address in 'receiver_emails': {email}")
+
+
+def restart_driver(driver):
+    logging.info("Restarting driver to maintain connection...")
+    driver.quit()
+    time.sleep(2)
+    return get_driver()
