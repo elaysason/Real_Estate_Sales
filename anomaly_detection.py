@@ -12,6 +12,7 @@ import pandas as pd
 import chardet
 import psycopg2
 import io
+from difflib import get_close_matches
 from decouple import config
 import re
 
@@ -54,61 +55,42 @@ def extend_data_with_city(data, city, driver, column_indexes, rows):
     return data
 
 
+floor_dict = {
+    "ראשונה": 1, "א": 1,
+    "שנייה": 2, "ב": 2,
+    "שלישית": 3, "ג": 3,
+    "רביעית": 4, "ד": 4,
+    "חמישית": 5, "ה": 5,
+    "שישית": 6, "ו": 6,
+    "שביעית": 7, "ז": 7,
+    "שמינית": 8, "ח": 8,
+    "תשיעית": 9, "ט": 9,
+    "עשירית": 10, "י": 10,
+    "אחת עשרה": 11, "יא": 11,
+    "שנים עשרה": 12, "יב": 12,
+    "שלוש עשרה": 13, "יג": 13,
+    "ארבע עשרה": 14, "יד": 14,
+    "חמש עשרה": 15, "טו": 15,
+    "שש עשרה": 16, "טז": 16,
+    "שבע עשרה": 17, "יז": 17,
+    "שמונה עשרה": 18, "יח": 18,
+    "תשע עשרה": 19, "יט": 19,
+    "עשרים": 20, "כ": 20,
+    "קרקע": 0, "קומת קרקע": 0,
+    "מרתף": -1, "מינוס": -1
+}
+
+
 def detect_floor_number(floor_name):
-    if floor_name is None:
+    if not floor_name:
         return None
-    # Strip whitespace for consistency
+
     floor_name = floor_name.strip()
+    closest_match = get_close_matches(floor_name, floor_dict.keys(), n=1, cutoff=0.8)
 
-    # Ground and basement levels
-    if re.search(r"קרקע|קומת קרקע", floor_name):  # Ground floor
-        return 0
-    elif re.search(r"מינוס|מרתף", floor_name):  # Basement
-        return -1
+    if closest_match:
+        return floor_dict[closest_match[0]]
 
-    # Mapping of ordinal names and letters to floor numbers up to 20
-    if re.search(r"ראשונה|\bא\b", floor_name):  # First floor
-        return 1
-    elif re.search(r"שנייה|\bב\b", floor_name):  # Second floor
-        return 2
-    elif re.search(r"שלישית|\bג\b", floor_name):  # Third floor
-        return 3
-    elif re.search(r"רביעית|\bד\b", floor_name):  # Fourth floor
-        return 4
-    elif re.search(r"חמישית|\bה\b", floor_name):  # Fifth floor
-        return 5
-    elif re.search(r"שישית|\bו\b", floor_name):  # Sixth floor
-        return 6
-    elif re.search(r"שביעית|\bז\b", floor_name):  # Seventh floor
-        return 7
-    elif re.search(r"שמינית|\bח\b", floor_name):  # Eighth floor
-        return 8
-    elif re.search(r"תשיעית|\bט\b", floor_name):  # Ninth floor
-        return 9
-    elif re.search(r"עשירית|\bי\b", floor_name):  # Tenth floor
-        return 10
-    elif re.search(r"אחת עשרה|\bיא\b", floor_name):  # Eleventh floor
-        return 11
-    elif re.search(r"שנים עשרה|\bיב\b", floor_name):  # Twelfth floor
-        return 12
-    elif re.search(r"שלוש עשרה|\bיג\b", floor_name):  # Thirteenth floor
-        return 13
-    elif re.search(r"ארבע עשרה|\bיד\b", floor_name):  # Fourteenth floor
-        return 14
-    elif re.search(r"חמש עשרה|\bטו\b", floor_name):  # Fifteenth floor
-        return 15
-    elif re.search(r"שש עשרה|\bטז\b", floor_name):  # Sixteenth floor
-        return 16
-    elif re.search(r"שבע עשרה|\bיז\b", floor_name):  # Seventeenth floor
-        return 17
-    elif re.search(r"שמונה עשרה|\bיח\b", floor_name):  # Eighteenth floor
-        return 18
-    elif re.search(r"תשע עשרה|\bיט\b", floor_name):  # Nineteenth floor
-        return 19
-    elif re.search(r"עשרים|\bכ\b", floor_name):  # Twentieth floor
-        return 20
-
-    # Return None if no match is found
     return None
 
 
@@ -177,7 +159,7 @@ def insert_council(council_id, council_name):
         raise
 
 
-def insert_into_db(data, city_id):
+def insert_into_db(data):
     try:
         with psycopg2.connect(database=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT) as conn:
             with conn.cursor() as cursor:
@@ -188,7 +170,7 @@ def insert_into_db(data, city_id):
                         cursor.execute("""
                                                INSERT INTO neighborhood (id, name, city_id) 
                                                VALUES (%s, %s, %s) 
-                                               ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name 
+                                               ON CONFLICT (name, city_id) DO NOTHING
                                            """,
                                        (record['neighborhoodId'], record['neighborhoodName'], record['settlmentID']))
                         logging.info(
@@ -300,7 +282,7 @@ def insert_into_db(data, city_id):
                         record['trend']['rate'],
                         record['trend']['years'],
                         record['parcelNum'],
-                        city_id
+                        record['settlmentID']
                     ))
                     logging.info(
                         f"Successfully inserted SALE for asset: {record['assetId']}, amount: {record['dealAmount']}, date: {record['dealDate']}")
@@ -467,7 +449,7 @@ def create_dataset():
                         response = requests.post(url, json=body)
                         print(f"Status Code: {response.status_code}")
                         response_data = json.loads(response.text)
-                        inserted_rows = insert_into_db(response_data, base_id)
+                        inserted_rows = insert_into_db(response_data)
                         logging.info(str(fetch_number) + " batch loaded having " + str(
                             inserted_rows) + " rows")
 
