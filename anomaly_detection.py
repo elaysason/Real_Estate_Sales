@@ -386,23 +386,15 @@ def get_first_match(driver, city):
 
     while not found:
         try:
-            # Create the dynamic XPath for the current item
             xpath = f'//*[@id="react-autowhatever-1--item-{index}"]'
-
-            # Wait for the item to be present
             item = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.XPATH, xpath))
             )
-
             item_values = item.text.split('\n')
-            # Get the font-weight style of the item
-            city_colour = item.value_of_css_property('color')
-
-            # Check if the font weight indicates bold
             if item_values[1] == 'יישוב':
                 if item_values[0] == city:
                     print(f'Found city: {item.text}')
-                    return item  # Click the bold item
+                    return item
                 else:
                     index += 1
             else:
@@ -410,7 +402,7 @@ def get_first_match(driver, city):
 
         except Exception as e:
             logging.info("Not found, retrying...")
-            break  # Exit the loop if no more items are found
+            break
 
 
 def create_dataset():
