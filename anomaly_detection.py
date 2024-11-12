@@ -14,7 +14,6 @@ import psycopg2
 import io
 from difflib import get_close_matches
 from decouple import config
-import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -159,29 +158,52 @@ def insert_council(council_id, council_name):
         raise
 
 
-def insert_into_db(data):
+def insert_into_db(data,total_sales):
     try:
         with psycopg2.connect(database=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT) as conn:
             with conn.cursor() as cursor:
+                sales_rows_affected = 0  # Initialize counter for sales rows
+
                 for record in data['data']['items']:
+                    if sales_rows_affected >= total_sales:
+                        logging.info(f"Processed required number of records ({total_sales})")
+                        break
                     neighborhood_exists = False
-                    # 2. Insert neighborhood
+
+                    # Insert neighborhood or retrieve its ID if it already exists
                     if record['neighborhoodName'] is not None:
                         cursor.execute("""
-                                               INSERT INTO neighborhood (id, name, city_id) 
-                                               VALUES (%s, %s, %s) 
-                                               ON CONFLICT (name, city_id) DO NOTHING
-                                           """,
-                                       (record['neighborhoodId'], record['neighborhoodName'], record['settlmentID']))
-                        logging.info(
-                            f"Successfully inserted/updated neighborhood: {record['neighborhoodName']} with ID: {record['neighborhoodId']}")
+                            INSERT INTO neighborhood (id, name, city_id) 
+                            VALUES (%s, %s, %s) 
+                            ON CONFLICT (name, city_id) DO NOTHING
+                        """, (
+                            record['neighborhoodId'],
+                            record['neighborhoodName'],
+                            record['settlmentID']
+                        ))
+
+                        # Check if the neighborhood was inserted
+                        if cursor.rowcount == 0:
+                            cursor.execute("""
+                                SELECT id FROM neighborhood 
+                                WHERE name = %s AND city_id = %s
+                            """, (record['neighborhoodName'], record['settlmentID']))
+                            existing_neighborhood = cursor.fetchone()
+                            if existing_neighborhood:
+                                neighborhood_id = existing_neighborhood[0]
+                                logging.info(
+                                    f"Retrieved existing neighborhood ID {neighborhood_id} for neighborhood: {record['neighborhoodName']}")
+                        else:
+                            neighborhood_id = record['neighborhoodId']
+                            logging.info(
+                                f"Successfully inserted neighborhood: {record['neighborhoodName']} with ID: {neighborhood_id}")
                         neighborhood_exists = True
                     else:
                         logging.warning(
                             f"Skipped neighborhood insertion due to null name for ID: {record['neighborhoodId']}")
-                    neighborhood_id = record['neighborhoodId'] if neighborhood_exists else None
+                        neighborhood_id = None
 
-                    # 3. Insert building
+                    # Insert building if neighborhood_id is available
                     cursor.execute("""
                         INSERT INTO building (
                             id,
@@ -189,51 +211,52 @@ def insert_into_db(data):
                             parcel_num, 
                             address,
                             total_floors,
-                            year_built
+                            year_built,
+                            city_id
                         ) 
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id, parcel_num) DO UPDATE SET 
                             parcel_num = EXCLUDED.parcel_num,
                             address = EXCLUDED.address,
                             total_floors = EXCLUDED.total_floors,
-                            year_built = EXCLUDED.year_built
+                            year_built = EXCLUDED.year_built,
+                            city_id = EXCLUDED.city_id
                     """, (
                         record['addressId'],
                         neighborhood_id,
                         record['parcelNum'],
                         record['address'],
                         record.get('buildingFloors', 0),
-                        record.get('yearBuilt', 0)
+                        record.get('yearBuilt', 0),
+                        record['settlmentID']
                     ))
+
                     logging.info(
                         f"Successfully inserted/updated building with ID: {record['addressId']} at address: {record['address']}")
-                    found = True
+
+                    # Handle property type
                     deal_nature = record['dealNature']
                     if deal_nature is not None:
                         deal_nature = deal_nature.replace("'", "")
-                        cursor.execute("SELECT id FROM property_type WHERE name = %s",
-                                       (record['dealNature'].replace("'", ""),))
+                        cursor.execute("SELECT id FROM property_type WHERE name = %s", (deal_nature,))
                         property_type_result = cursor.fetchone()
-                        property_type_id = property_type_result[
-                            0] if property_type_result else 6
+                        property_type_id = property_type_result[0] if property_type_result else 6
                     else:
-                        found = False
                         property_type_id = 6
 
-                    # Default to 6 if not found
-
-                    # If the property type doesn't exist, log a warning and skip asset insertion
                     if property_type_id is None:
                         logging.warning(
                             f"Property type ID for '{deal_nature}' does not exist. Skipping asset insertion.")
-                        continue  # Skip this asset insertion
+                        continue
+
                     asset_id = record['assetId'] if record['assetId'] is not None else 0
-                    # 5. Insert asset
+
+                    # Insert asset
                     cursor.execute("""
                         INSERT INTO asset (
                             id,
                             building_id,
-                            parcel_num, -- Include parcel_num here
+                            parcel_num, 
                             property_type_id,
                             floor,
                             square_meters,
@@ -242,7 +265,7 @@ def insert_into_db(data):
                         VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id, parcel_num) DO UPDATE SET 
                             building_id = EXCLUDED.building_id,
-                            parcel_num = EXCLUDED.parcel_num, -- Update parcel_num on conflict
+                            parcel_num = EXCLUDED.parcel_num,
                             property_type_id = EXCLUDED.property_type_id,
                             floor = EXCLUDED.floor,
                             square_meters = EXCLUDED.square_meters,
@@ -256,13 +279,13 @@ def insert_into_db(data):
                         record['assetArea'],
                         record['roomNum']
                     ))
+
                     logging.info(
                         f"Successfully inserted/updated asset with ID: {record['assetId']} in building: {record['addressId']}")
 
-                    # 6. Insert sale
+                    # Insert sale
                     cursor.execute("""
                         INSERT INTO sales (
-                            
                             asset_id,
                             sale_date,
                             amount,
@@ -272,9 +295,8 @@ def insert_into_db(data):
                             parcel_num,
                             city_id
                         ) 
-                        VALUES ( %s, %s, %s, %s, %s, %s,%s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """, (
-
                         asset_id,
                         record['dealDate'],
                         record['dealAmount'],
@@ -284,12 +306,17 @@ def insert_into_db(data):
                         record['parcelNum'],
                         record['settlmentID']
                     ))
+
+                    # Only update the counter for rows affected by sales insertion
+                    sales_rows_affected += cursor.rowcount
+
                     logging.info(
                         f"Successfully inserted SALE for asset: {record['assetId']}, amount: {record['dealAmount']}, date: {record['dealDate']}")
 
+                # Commit and log total sales rows affected
                 conn.commit()
-                logging.info(f"Successfully completed batch insertion of {len(data['data']['items'])} records")
-                return len(data['data']['items'])
+                return sales_rows_affected
+
 
     except Exception as e:
         logging.error(f"Error inserting data into the database: {e}")
@@ -340,6 +367,19 @@ def batch_insert_into_db(data_batch, batch_size=1000):
         return 0
 
 
+def city_page_validation(driver, city):
+    if driver.current_url == "https://dev.nadlan.gov.il/":
+        return False
+
+    try:
+
+        city_page = driver.find_element(By.CSS_SELECTOR, 'a.locationLink')
+        return city_page.text.strip() == city
+
+    except NoSuchElementException:
+        return False
+
+
 def get_first_match(driver, city):
     index = 0
     found = False
@@ -386,6 +426,7 @@ def create_dataset():
     column_indexes = list(range(1, 10))
 
     for index, city in enumerate(cities["שם_ישוב"][latest_index:], start=latest_index):
+        city = city.strip()
         county_index = int(cities["סמל_לשכת_מנא"][index])
         county_name = cities["לשכה"][index].strip()
         council_index = int(cities["סמל_מועצה_איזורית"][index])
@@ -405,9 +446,9 @@ def create_dataset():
                 search_box = WebDriverWait(driver, 10).until(
                     EC.presence_of_element_located((By.XPATH, '//*[@id="myInput2"]'))
                 )
-                search_box.send_keys(city.strip() + Keys.RETURN)
+                search_box.send_keys(city + Keys.RETURN)
 
-                search_button = get_first_match(driver, city.strip())
+                search_button = get_first_match(driver, city)
                 if search_button is None:
                     logging.info(f"Not found, retrying... (Retry {retry_count}/{max_retries})")
                     driver.get("https://dev.nadlan.gov.il/")
@@ -421,7 +462,7 @@ def create_dataset():
 
                 retry_count += 1
         time.sleep(10)
-        if driver.current_url == "https://dev.nadlan.gov.il/":
+        if not city_page_validation(driver, city):
             logging.info("Not found, moving on to next city...")
             continue
         else:
@@ -444,47 +485,20 @@ def create_dataset():
                         "sk": "eyJhbGciOiJIUzI1NiJ9.eyJkb21haW4iOiJkZXYubmFkbGFuLmdvdi5pbCIsImV4cCI6MTcyOTQxOTY3NH0.nwjNBPOn2xKgtoREu2McVZjPRevomyAedyUrHav2wV4"
                     }
                     requests_number = int(int(total_deals) / ROWS_PER_REQUEST) + 1
-
-                    for fetch_number in range(1, requests_number + 1):
+                    last_sales_number = int(total_deals) % ROWS_PER_REQUEST
+                    for fetch_number in range(1, requests_number+1):
                         response = requests.post(url, json=body)
                         print(f"Status Code: {response.status_code}")
                         response_data = json.loads(response.text)
-                        inserted_rows = insert_into_db(response_data)
+                        if fetch_number != requests_number:
+                            inserted_rows = insert_into_db(response_data,ROWS_PER_REQUEST)
+                        else:
+                            inserted_rows = insert_into_db(response_data,last_sales_number)
                         logging.info(str(fetch_number) + " batch loaded having " + str(
                             inserted_rows) + " rows")
 
-                    table = WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.CLASS_NAME, "myTable"))
-                    )
 
-                    previous_number_of_rows = 0
-                    while True:
-                        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                        WebDriverWait(driver, 10).until(
-                            lambda d: len(table.find_elements(By.CLASS_NAME, "tableRow")) > previous_number_of_rows
-                        )
-
-                        rows = table.find_elements(By.CLASS_NAME, "tableRow")
-                        number_of_rows = len(rows)
-                        logging.info(f"Rows found: {number_of_rows}")
-
-                        if number_of_rows == previous_number_of_rows:
-                            break
-                        previous_number_of_rows = number_of_rows
-
-                        if number_of_rows % 1000 == 0 and not (city == "עפולה" and number_of_rows < 8000):
-                            extended_data = extend_data_with_city(data, city, driver, column_indexes, rows)
-                            inserted = insert_into_db(extended_data)
-                            logging.info(f"Inserted {inserted} records into the database")
-                            data = []
-
-                    if number_of_rows > 0:
-                        extended_data = extend_data_with_city(data, city, driver, column_indexes, rows)
-                        inserted = insert_into_db(extended_data)
-                        logging.info(f"Inserted {inserted} records into the database")
-                    else:
-                        logging.info("0 records of sales found")
-
+                #
                 except (NoSuchElementException, TimeoutException):
                     logging.error("Table or rows not found.")
                     continue
