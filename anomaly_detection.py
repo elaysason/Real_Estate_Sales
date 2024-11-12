@@ -357,8 +357,6 @@ def batch_insert_into_db(data_batch, batch_size=1000):
                         [(record['settlmentName'],) for record in batch]
                     )
 
-                    # Similar batched inserts for other tables...
-
                 conn.commit()
                 return len(data_batch)
 
