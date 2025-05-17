@@ -21,6 +21,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Debug env
+        run: |
+          echo "EMAIL_USERNAME=$EMAIL_USERNAME"
+          echo "RECEIVER_EMAILS=$RECEIVER_EMAILS"
       - name: Run script
         env:
           EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
