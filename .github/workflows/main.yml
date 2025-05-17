@@ -27,4 +27,4 @@ jobs:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
         run: |
-          python real_estate_notifier.py
+          python sales_notification.py
