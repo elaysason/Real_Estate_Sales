@@ -12,10 +12,12 @@ def get_driver(link):
     Returns:
         webdriver.Chrome: A Chrome WebDriver instance with the specified options.
     """
-    chrome_options = Options()
-    #chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--window-size=1920,1080")
-    driver = webdriver.Chrome(options=chrome_options)
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+
+    driver = webdriver.Chrome(options=options)
 
     driver.get(link)
     return driver
