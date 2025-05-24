@@ -29,12 +29,15 @@ jobs:
         env:
           EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
           RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}          
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          DESIRED_LOCATION: ${{ secrets.DESIRED_LOCATION }}
+          
 
       - name: Run script
         env:
           EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
+          DESIRED_LOCATION: ${{ secrets.DESIRED_LOCATION }}
         run: |
           python sales_notification.py
