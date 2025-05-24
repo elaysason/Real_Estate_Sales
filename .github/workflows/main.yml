@@ -40,4 +40,4 @@ jobs:
           RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
           DESIRED_LOCATION: ${{ secrets.DESIRED_LOCATION }}
         run: |
-          python sales_notification.py
+          python github_sales_notification.py
