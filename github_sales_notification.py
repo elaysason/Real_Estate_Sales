@@ -180,19 +180,26 @@ def load_config(json_path):
 
 if __name__ == "__main__":
     try:
-        validate_parameters(sys.argv)
-        config = load_config(sys.argv[1])
+        # validate_parameters(sys.argv)
+        email_username = os.getenv("EMAIL_USERNAME")
+        email_password = os.getenv("EMAIL_PASSWORD")
+        desired_location = os.getenv("DESIRED_LOCATION")
+        receiver_emails = os.getenv("RECEIVER_EMAILS", "")
 
-        desired_location = config['desired_location']
-        user_sender_email = config['sender_email']
-        user_receiver_emails = config['receiver_emails']
-        user_server_password = config['email_password']
+        email_list = [email.strip() for email in receiver_emails.split(",") if email.strip()]
+        config_from_env = {
+            'desired_location': desired_location,
+            'sender_email': email_username,
+            'receiver_emails': email_list,
+            'email_password': email_password,
+        }
+        validate_config(config_from_env)
 
         new_sale, latest_sale, latest_url = search_website(desired_location)
 
         if new_sale:
 
-            sale_email(latest_sale, latest_url, user_sender_email, user_receiver_emails, user_server_password)
+            sale_email(latest_sale, latest_url, email_username, email_list, email_password)
             print('Finished the run, new sale recorded and email sent.')
         else:
             print('Finished the run, no new sale')
