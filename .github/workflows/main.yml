@@ -25,13 +25,15 @@ jobs:
         run: |
           echo "EMAIL_USERNAME=$EMAIL_USERNAME"
           echo "RECEIVER_EMAILS=$RECEIVER_EMAILS"
+          echo "EMAIL_PASSWORD=$EMAIL_PASSWORD"
         env:
           EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
           RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}          
 
       - name: Run script
         env:
-          EMAIL_USERNAME: ${{ secrets.SENDER_EMAIL }}
+          EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
         run: |
