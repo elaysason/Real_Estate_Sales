@@ -52,6 +52,7 @@ def search_website(search_place):
     ))
     rows = driver.find_elements(By.CSS_SELECTOR, "table#dealsTable tbody > tr.mainTable__row")
     cells = rows[0].find_elements(By.TAG_NAME, "td")
+    print(cells)
 
     latest_sale =  [cell.text.strip() for cell in cells]
     print(latest_sale)
