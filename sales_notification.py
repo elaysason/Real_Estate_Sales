@@ -93,6 +93,7 @@ def take_govmap_screenshot(address, output_path="govmap_screenshot.png"):
     driver.quit()
 
 def sale_email(sale_details, sale_url, sender_email, receiver_emails, password):
+    print(f"Sending email from {sender_email} having passowrd {password}")
     subject = "דירה חדשה נמכרה!"
     address = sale_details[1]
     take_govmap_screenshot(address)
