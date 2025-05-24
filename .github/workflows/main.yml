@@ -31,7 +31,7 @@ jobs:
 
       - name: Run script
         env:
-          EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
+          EMAIL_USERNAME: ${{ secrets.SENDER_EMAIL }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
         run: |
