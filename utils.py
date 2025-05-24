@@ -5,7 +5,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium import webdriver
 
 
-def get_driver():
+def get_driver(link):
     """
     Initializes and returns a Chrome WebDriver instance in the government site in headless mode.
 
@@ -17,8 +17,7 @@ def get_driver():
     chrome_options.add_argument("--window-size=1920,1080")
     driver = webdriver.Chrome(options=chrome_options)
 
-    driver.get(
-        "https://dev.nadlan.gov.il/")
+    driver.get(link)
     return driver
 def validate_parameters(args):
     """
