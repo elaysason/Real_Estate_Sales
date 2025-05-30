@@ -32,10 +32,16 @@ def search_website(search_place):
     driver = get_driver("https://dev.nadlan.gov.il/")
     logging.info("Webdriver launched and navigating to site.")
 
-    time.sleep(10)
-    logging.debug("Waiting for page to load completely.")
+    #logging.debug("Waiting for page to load completely.")
 
     try:
+        logging.debug("Waiting for the search input to become visible...")
+        WebDriverWait(driver, 20).until(
+            EC.visibility_of_element_located((By.ID, "myInput2"))
+        )
+        logging.info("Search input is visible.")
+
+        # Enter the search term
         search_box = driver.find_element(By.ID, "myInput2")
         search_box.send_keys(search_place)
         logging.info("Search term entered.")
