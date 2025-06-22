@@ -36,7 +36,7 @@ def search_website(search_place):
 
     try:
         logging.debug("Waiting for the search input to become visible...")
-        WebDriverWait(driver, 60).until(
+        WebDriverWait(driver, 600).until(
             EC.visibility_of_element_located((By.ID, "myInput2"))
         )
         logging.info("Search input is visible.")
