@@ -8,6 +8,7 @@ from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
+from time import sleep
 from urllib.parse import quote_plus
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -46,14 +47,14 @@ def search_website(search_place):
         search_box.send_keys(search_place)
         logging.info("Search term entered.")
 
-        wait = WebDriverWait(driver, 10)
+        wait = WebDriverWait(driver, 600)
         top_suggestion = wait.until(EC.element_to_be_clickable(
             (By.CSS_SELECTOR, "ul.react-autosuggest__suggestions-list > li.react-autosuggest__suggestion")
         ))
         top_suggestion.click()
         logging.info("Top suggestion selected.")
 
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 600).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "tr.mainTable__row"))
         )
         logging.info("Sales table loaded.")
@@ -113,6 +114,31 @@ def take_govmap_screenshot(address, output_path="govmap_screenshot.png"):
     finally:
         driver.quit()
         logging.info("GovMap browser session closed.")
+
+def take_city_renewal_screenshot(address, output_path = "city_renewal_screenshot.png"):
+    try:
+        logging.info("Generating CityRenewal screenshot for: {address}")
+        driver = get_driver("https://moch.maps.arcgis.com/apps/webappviewer/index.html?id=d6191754d18a4fd29ee2e2ca1d040759")
+        logging.info("Webdriver launched and navigating to מפת התחדשות עירונית")
+        WebDriverWait(driver, 600).until(
+            EC.visibility_of_element_located((By.ID, "widgets_Search_Widget_3"))
+        )
+        search_box = driver.find_element(By.ID, "widgets_Search_Widget_3")
+        search_box.send_keys(address)
+        logging.info("Search term entered.")
+        zoom_out_button = driver.find_element(By.CLASS_NAME, "zoom-out")
+        zoom_out_button.click()
+        time.sleep(0.5)
+        zoom_out_button.click()
+
+
+    except Exception as e:
+        logging.exception("Failed to take CityRenewal screenshot.")
+        raise
+    finally:
+        driver.quit()
+        logging.info("CityRenewal browser session closed.")
+
 
 
 def sale_email(sale_details, sale_url, sender_email, receiver_emails, password):
