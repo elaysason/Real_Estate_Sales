@@ -32,8 +32,7 @@ def search_website(search_place):
 
     driver = get_driver("https://dev.nadlan.gov.il/")
     logging.info("Webdriver launched and navigating to site.")
-
-    #logging.debug("Waiting for page to load completely.")
+    logging.debug("Current URL: {driver.current_url}")
 
     try:
         logging.debug("Waiting for the search input to become visible...")
