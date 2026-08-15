@@ -65,30 +65,38 @@ def search_website(search_place):
 
         latest_date = datetime.strptime(latest_sale[3], "%d/%m/%Y")
         new_sale = False
-        file_path = "latest_sale.txt"
+        state_changed = False
+        file_path = "latest_sales.json"
 
-        if not os.path.exists(file_path):
-            logging.info("No previous record found. Treating as first run.")
-            new_sale = True
-            with open(file_path, "w") as f:
-                f.write(latest_sale[3])
+        if os.path.exists(file_path):
+            with open(file_path, "r", encoding="utf-8") as f:
+                latest_dates = json.load(f)
         else:
-            with open(file_path, 'r') as f:
-                previous_date = datetime.strptime(f.read().strip(), "%d/%m/%Y")
+            latest_dates = {}
+
+        if search_place not in latest_dates:
+            logging.info("No previous record found. Saving the first result as a baseline.")
+            latest_dates[search_place] = latest_sale[3]
+            state_changed = True
+        else:
+            try:
+                previous_date = datetime.strptime(latest_dates[search_place], "%d/%m/%Y")
+            except ValueError:
+                logging.warning("Stored date is invalid. Replacing it with the current baseline.")
+                latest_dates[search_place] = latest_sale[3]
+                state_changed = True
+            else:
                 if latest_date > previous_date:
                     logging.info(f"New sale detected: {latest_date} > {previous_date}")
                     new_sale = True
+                    latest_dates[search_place] = latest_sale[3]
+                    state_changed = True
                 else:
                     logging.info("No new sale found.")
 
-        if new_sale:
-            with open(file_path, "w") as f:
-                f.write(latest_sale[3])
-                logging.debug("Updated latest_sale.txt with new date.")
-
         url = driver.current_url
         logging.info("Search process complete.")
-        return new_sale, latest_sale, url
+        return new_sale, latest_sale, url, latest_dates if state_changed else None
 
     except Exception as e:
         logging.exception("Error occurred during scraping process.")
@@ -146,16 +154,12 @@ def take_city_renewal_screenshot(address, output_path = "city_renewal_screenshot
 
 
 
-def sale_email(sale_details, sale_url, sender_email, receiver_emails, password):
-    subject = "דירה חדשה נמכרה!"
+def completion_email(search_place, new_sale, sale_details, sale_url, sender_email, receiver_emails, password, run_url):
+    subject = "נמצאה עסקה חדשה!" if new_sale else "בדיקת העסקאות הסתיימה"
     address = sale_details[1]
 
-    logging.info(f"Preparing to send email alert for sale at: {address}")
-    take_govmap_screenshot(address)
-
-    encoded_address = quote_plus(address)
-    govmap_url = f"https://www.govmap.gov.il/?q={encoded_address}"
-    map_image_path = "govmap_screenshot.png"
+    logging.info(f"Preparing completion email for: {search_place}")
+    sent = False
 
     for receiver_email in receiver_emails:
         try:
@@ -168,38 +172,34 @@ def sale_email(sale_details, sale_url, sender_email, receiver_emails, password):
             <html>
               <body dir="rtl" style="direction: rtl;">
                 <p>שלום,</p>
-                <p>בתאריך <strong>{sale_details[3]}</strong> נמכרה <strong>{sale_details[6]}</strong><br>
+                <p>הבדיקה עבור <strong>{search_place}</strong> הסתיימה בהצלחה.</p>
+                <p><strong>{"נמצאה עסקה חדשה" if new_sale else "לא נמצאה עסקה חדשה"}</strong></p>
+                <p>העסקה האחרונה היא מתאריך <strong>{sale_details[3]}</strong>:<br>
+                   <strong>{sale_details[6]}</strong><br>
                    בכתובת <strong>{address}</strong> עם <strong>{sale_details[7]}</strong> חדרים<br>
                    בקומה <strong>{sale_details[8]}</strong>, בשטח של <strong>{sale_details[2]}</strong> מ"ר,<br>
                    ובמחיר של <strong>{sale_details[4]}</strong>.
                 </p>
                 <p>
-                  🔗 <a href="{sale_url}">פרטי העסקה</a><br>
-                  🗺️ <a href="{govmap_url}">צפה במפה (GovMap)</a>
+                  <a href="{sale_url}">תוצאות העסקאות</a><br>
+                  <a href="{run_url}">GitHub Actions run</a>
                 </p>
-                <img src="cid:govmapimage" width="600" />
               </body>
             </html>
             """
             message.attach(MIMEText(html, "html"))
-
-            if os.path.exists(map_image_path):
-                with open(map_image_path, 'rb') as img:
-                    mime_img = MIMEImage(img.read(), _subtype='png')
-                    mime_img.add_header('Content-ID', '<govmapimage>')
-                    mime_img.add_header('Content-Disposition', 'inline', filename="govmap.png")
-                    message.attach(mime_img)
-                logging.debug("Map image attached to email.")
-            else:
-                logging.warning("Map image not found. Skipping image attachment.")
 
             with smtplib.SMTP("smtp.gmail.com", 587) as server:
                 server.starttls()
                 server.login(sender_email, password)
                 server.sendmail(sender_email, receiver_email, message.as_string())
                 logging.info(f"Email sent successfully to: {receiver_email}")
+                sent = True
         except Exception as e:
             logging.exception(f"Failed to send email to: {receiver_email}")
+
+    if not sent:
+        raise RuntimeError("Failed to send the completion email.")
 
 
 def load_config(json_path):
@@ -218,6 +218,11 @@ if __name__ == "__main__":
         email_password = os.getenv("EMAIL_PASSWORD")
         desired_location = os.getenv("DESIRED_LOCATION")
         receiver_emails = os.getenv("RECEIVER_EMAILS", "")
+        action_run_url = os.getenv("ACTION_RUN_URL", "")
+
+        if not desired_location or not desired_location.strip():
+            raise ValueError("DESIRED_LOCATION is not configured.")
+        desired_location = desired_location.strip()
 
         email_list = [email.strip() for email in receiver_emails.split(",") if email.strip()]
         config_from_env = {
@@ -229,14 +234,18 @@ if __name__ == "__main__":
         validate_config(config_from_env)
         logging.info("Environment configuration loaded and validated.")
 
-        new_sale, latest_sale, latest_url = search_website(desired_location)
+        new_sale, latest_sale, latest_url, updated_state = search_website(desired_location)
 
-        if new_sale:
-            logging.info("New sale detected! Sending email...")
-            sale_email(latest_sale, latest_url, email_username, email_list, email_password)
-            logging.info("Run complete. Notification sent.")
-        else:
-            logging.info("Run complete. No new sales detected.")
+        completion_email(
+            desired_location, new_sale, latest_sale, latest_url,
+            email_username, email_list, email_password, action_run_url
+        )
+
+        if updated_state is not None:
+            with open("latest_sales.json", "w", encoding="utf-8") as f:
+                json.dump(updated_state, f, ensure_ascii=False, indent=2)
+
+        logging.info("Run complete. Completion email sent.")
 
     except Exception as e:
         logging.exception("Fatal error occurred during run.")
