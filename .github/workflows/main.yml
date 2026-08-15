@@ -22,14 +22,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: pip
-
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt
+        shell: cmd
+        run: |
+          C:\Python311\python.exe -m venv .venv
+          .venv\Scripts\python.exe -m pip install -r requirements.txt
 
       - name: Run script
         env:
@@ -37,7 +34,8 @@ jobs:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
           DESIRED_LOCATION: ${{ secrets.DESIRED_LOCATION }}
-        run: python github_sales_notification.py
+        shell: cmd
+        run: .venv\Scripts\python.exe github_sales_notification.py
 
       - name: Upload failure screenshot
         if: failure()
