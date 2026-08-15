@@ -92,6 +92,12 @@ def search_website(search_place):
 
     except Exception as e:
         logging.exception("Error occurred during scraping process.")
+        try:
+            driver.save_screenshot("scrape_failure.png")
+            logging.error("Page title: %s", driver.title)
+            logging.error("Page text: %s", driver.find_element(By.TAG_NAME, "body").text[:2000])
+        except Exception:
+            logging.exception("Failed to capture page diagnostics.")
         raise
 
     finally:

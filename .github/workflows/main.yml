@@ -42,6 +42,14 @@ jobs:
           DESIRED_LOCATION: ${{ secrets.DESIRED_LOCATION }}
         run: xvfb-run -a python github_sales_notification.py
 
+      - name: Upload failure screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrape-failure
+          path: scrape_failure.png
+          if-no-files-found: ignore
+
       - name: Persist scraper state
         run: |
           date --utc --iso-8601=seconds > .last_scrape_run
