@@ -13,7 +13,6 @@ def get_driver(link):
         webdriver.Chrome: A Chrome WebDriver instance with the specified options.
     """
     options = Options()
-    options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
 

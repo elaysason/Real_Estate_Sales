@@ -2,36 +2,37 @@ name: Real Estate Notifier
 
 on:
   schedule:
-    - cron: '0 6 * * *'  # Runs every 10 minutes
-  workflow_dispatch:         # Allows manual triggering
+    - cron: '0 10 * * 6'
+      timezone: Asia/Jerusalem
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: real-estate-notifier
+  cancel-in-progress: false
 
 jobs:
   run:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
+          cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Debug env
         run: |
-          echo "EMAIL_USERNAME=$EMAIL_USERNAME"
-          echo "RECEIVER_EMAILS=$RECEIVER_EMAILS"
-          echo "EMAIL_PASSWORD=$EMAIL_PASSWORD"
-        env:
-          EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
-          RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          DESIRED_LOCATION: ${{ secrets.DESIRED_LOCATION }}
-          
+          sudo apt-get update
+          sudo apt-get install --yes xvfb
+          python -m pip install -r requirements.txt
 
       - name: Run script
         env:
@@ -39,5 +40,13 @@ jobs:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
           DESIRED_LOCATION: ${{ secrets.DESIRED_LOCATION }}
+        run: xvfb-run -a python github_sales_notification.py
+
+      - name: Persist scraper state
         run: |
-          python github_sales_notification.py
+          date --utc --iso-8601=seconds > .last_scrape_run
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add latest_sale.txt .last_scrape_run
+          git commit -m "Update scraper state [skip ci]"
+          git push
