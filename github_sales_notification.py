@@ -31,7 +31,7 @@ logging.basicConfig(
 def search_website(search_place):
     logging.info(f"Starting website search for place: {search_place}")
 
-    driver = get_driver("https://dev.nadlan.gov.il/")
+    driver = get_driver("https://www.nadlan.gov.il/")
     logging.info("Webdriver launched and navigating to site.")
     logging.info(f"Current URL: {driver.current_url}")
 
@@ -108,6 +108,7 @@ def search_website(search_place):
                 attempt,
                 value,
             )
+            driver.execute_script("window.sessionStorage.removeItem('recaptchaServerToken');")
             driver.refresh()
 
         logging.debug(f"Extracted latest sale data: {latest_sale}")
