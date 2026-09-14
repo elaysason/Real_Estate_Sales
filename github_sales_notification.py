@@ -11,6 +11,7 @@ from email.mime.image import MIMEImage
 from time import sleep
 from urllib.parse import quote_plus
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
@@ -53,14 +54,62 @@ def search_website(search_place):
         top_suggestion.click()
         logging.info("Top suggestion selected.")
 
-        WebDriverWait(driver, 60).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "table#dealsTable tbody > tr.mainTable__row"))
-        )
-        logging.info("Sales table loaded.")
+        def transaction_state(current_driver):
+            try:
+                rows = [
+                    row for row in current_driver.find_elements(
+                        By.CSS_SELECTOR,
+                        "table#dealsTable > tbody > tr.mainTable__row:not(.mainTable__row--collapse)"
+                    )
+                    if row.is_displayed()
+                ]
+                if rows:
+                    return "rows", None
 
-        rows = driver.find_elements(By.CSS_SELECTOR, "table#dealsTable tbody > tr.mainTable__row")
-        cells = rows[0].find_elements(By.TAG_NAME, "td")
-        latest_sale = [cell.text.strip() for cell in cells]
+                errors = [
+                    error for error in current_driver.find_elements(By.CSS_SELECTOR, ".dealsLoadError")
+                    if error.is_displayed() and error.text.strip()
+                ]
+                if errors:
+                    return "error", errors[0].text.strip()
+            except (NoSuchElementException, StaleElementReferenceException):
+                return False
+
+            return False
+
+        rows = None
+        latest_sale = None
+        for attempt in range(1, 4):
+            try:
+                state, value = WebDriverWait(driver, 90).until(transaction_state)
+            except TimeoutException:
+                state, value = "timeout", "Timed out waiting for transaction results."
+
+            if state == "rows":
+                try:
+                    rows = driver.find_elements(
+                        By.CSS_SELECTOR,
+                        "table#dealsTable > tbody > tr.mainTable__row:not(.mainTable__row--collapse)"
+                    )
+                    if rows:
+                        cells = rows[0].find_elements(By.TAG_NAME, "td")
+                        latest_sale = [cell.text.strip() for cell in cells]
+                        logging.info("Sales table loaded.")
+                        break
+                    state, value = "timeout", "Transaction rows disappeared before extraction."
+                except StaleElementReferenceException:
+                    state, value = "timeout", "Transaction rows changed before extraction."
+
+            if attempt == 3:
+                raise RuntimeError(f"Nadlan transaction load failed: {value}")
+
+            logging.warning(
+                "Nadlan transaction load failed on attempt %s: %s. Refreshing and retrying.",
+                attempt,
+                value,
+            )
+            driver.refresh()
+
         logging.debug(f"Extracted latest sale data: {latest_sale}")
 
         latest_date = datetime.strptime(latest_sale[3], "%d/%m/%Y")
