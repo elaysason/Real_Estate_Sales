@@ -9,7 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 from time import sleep
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlsplit
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
@@ -28,10 +28,37 @@ logging.basicConfig(
 )
 
 
+def log_nadlan_api_failures(driver):
+    try:
+        for entry in driver.get_log("performance"):
+            message = json.loads(entry["message"])["message"]
+            if message["method"] != "Network.responseReceived":
+                continue
+            params = message["params"]
+            response = params["response"]
+            url = urlsplit(response["url"])
+            if url.hostname != "api.nadlan.gov.il" or response["status"] < 400:
+                continue
+            # Only log known endpoints; never log request bodies, tokens or query strings.
+            if url.path not in ("/token-verify", "/deal-info", "/deal-data"):
+                continue
+            logging.warning("Nadlan API %s returned HTTP %s", url.path, response["status"])
+            try:
+                body = driver.execute_cdp_cmd(
+                    "Network.getResponseBody", {"requestId": params["requestId"]}
+                )
+                if json.loads(body["body"]).get("error") == "Token verification failed":
+                    logging.warning("Nadlan CAPTCHA token verification failed.")
+            except Exception:
+                logging.debug("Nadlan API error response body unavailable.")
+    except Exception:
+        logging.warning("Nadlan network diagnostics unavailable.")
+
+
 def search_website(search_place):
     logging.info(f"Starting website search for place: {search_place}")
 
-    driver = get_driver("https://www.nadlan.gov.il/")
+    driver = get_driver("https://www.nadlan.gov.il/", network_logging=True)
     logging.info("Webdriver launched and navigating to site.")
     logging.info(f"Current URL: {driver.current_url}")
 
@@ -100,14 +127,18 @@ def search_website(search_place):
                 except StaleElementReferenceException:
                     state, value = "timeout", "Transaction rows changed before extraction."
 
+            log_nadlan_api_failures(driver)
             if attempt == 3:
                 raise RuntimeError(f"Nadlan transaction load failed: {value}")
 
+            retry_delay = 15 * (2 ** (attempt - 1))
             logging.warning(
-                "Nadlan transaction load failed on attempt %s: %s. Refreshing and retrying.",
+                "Nadlan transaction load failed on attempt %s: %s. Retrying in %s seconds.",
                 attempt,
                 value,
+                retry_delay,
             )
+            time.sleep(retry_delay)
             driver.execute_script("window.sessionStorage.removeItem('recaptchaServerToken');")
             driver.refresh()
 

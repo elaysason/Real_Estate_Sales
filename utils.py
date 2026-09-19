@@ -5,7 +5,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium import webdriver
 
 
-def get_driver(link):
+def get_driver(link, network_logging=False):
     """
     Initializes and returns a Chrome WebDriver instance in the government site in headless mode.
 
@@ -16,6 +16,8 @@ def get_driver(link):
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
+    if network_logging:
+        options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
 
     driver = webdriver.Chrome(options=options)
 
